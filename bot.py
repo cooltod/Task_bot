@@ -179,7 +179,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Main Function
 def main():
-    BOT_TOKEN = "YOUR_BOT_TOKEN"  # Replace with your Bot Token
+    BOT_TOKEN = "7856544100:AAEQg6esrMF6Z7mefUAtbwzmqgG-TBuKTU0"  # Replace with your Bot Token
 
     app = Application.builder().token(BOT_TOKEN).build()
 
