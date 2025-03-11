@@ -12,10 +12,10 @@ tasks = {1: "Share the bot with 3 friends", 2: "Join our Telegram group"}  # Exa
 joined_users = set()  # Users who passed the channel join check
 
 # Admin ID (Replace with your Telegram ID)
-ADMIN_ID = 123456789  # Replace with your Telegram ID
+ADMIN_ID = 737758689  # Replace with your Telegram ID
 
 # Bot Configuration
-BOT_USERNAME = "YourBotUsername"  # Replace with your bot's username (without @)
+BOT_USERNAME = "duckpolz_bot"  # Replace with your bot's username (without @)
 CHANNEL_USERNAME = "HBQuarters"  # Channel username (without @)
 CHANNEL_LINK = "https://t.me/HBQuarters"
 
