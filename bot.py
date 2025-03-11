@@ -12,7 +12,7 @@ tasks = {}  # Stores tasks (task_id: task_description)
 daily_bonus_claimed = {}
 
 # Admin ID (Replace with your Telegram ID)
-ADMIN_ID = 123456789  # Change this to your Telegram ID
+ADMIN_ID = 737758689   # Change this to your Telegram ID
 
 # Start Command (Fun & Interactive)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
