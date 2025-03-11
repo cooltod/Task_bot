@@ -16,8 +16,8 @@ ADMIN_ID = 737758689  # Replace with your Telegram ID
 
 # Bot Configuration
 BOT_USERNAME = "duckpolz_bot"  # Replace with your bot's username (without @)
-CHANNEL_USERNAME = "HBQuarters"  # Channel username (without @)
-CHANNEL_LINK = "https://t.me/HBQuarters"
+CHANNEL_USERNAME = "MNBLChat "  # Channel username (without @)
+CHANNEL_LINK = "https://t.me/MNBLChat"
 
 # Start Command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
