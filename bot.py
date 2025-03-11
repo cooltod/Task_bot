@@ -6,124 +6,64 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Temporary Storage (User Balances & Tasks)
-users = {}
-tasks = {}  # Stores tasks (task_id: task_description)
-daily_bonus_claimed = {}
+# Storage (Temporary - No DB)
+users = {}  # {user_id: {"balance": X, "referrals": [ref_user_ids]}}
+tasks = {1: "Share the bot with 3 friends", 2: "Join our Telegram group"}  # Example tasks
+joined_users = set()  # Users who passed the channel join check
 
 # Admin ID (Replace with your Telegram ID)
-ADMIN_ID = 737758689   # Change this to your Telegram ID
+ADMIN_ID = 123456789  # Replace with your Telegram ID
 
-# Start Command (Fun & Interactive)
+# Bot Configuration
+BOT_USERNAME = "YourBotUsername"  # Replace with your bot's username (without @)
+CHANNEL_USERNAME = "HBQuarters"  # Channel username (without @)
+CHANNEL_LINK = "https://t.me/HBQuarters"
+
+# Start Command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    users.setdefault(user_id, {"balance": 0, "referred_by": None, "completed_tasks": []})
+    users.setdefault(user_id, {"balance": 0, "referrals": [], "completed_tasks": []})
 
     keyboard = [
         [InlineKeyboardButton("💰 Check Balance", callback_data="balance"),
          InlineKeyboardButton("📋 View Tasks", callback_data="view_tasks")],
-        [InlineKeyboardButton("🎁 Claim Daily Bonus", callback_data="daily_bonus"),
-         InlineKeyboardButton("💼 How to Earn?", callback_data="how_to_earn")],
-        [InlineKeyboardButton("📤 Request Withdrawal", callback_data="withdraw")],
+        [InlineKeyboardButton("👥 Referral Info", callback_data="referrals"),
+         InlineKeyboardButton("📤 Withdraw", callback_data="withdraw")],
+        [InlineKeyboardButton("💼 How to Earn?", callback_data="earnings")]
     ]
-    
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_animation(
-        animation="https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.gif",
-        caption=f"👋 **Hey {update.effective_user.first_name}!**\n\n"
-                f"🎯 Earn ₹1 per task\n"
-                f"📢 Refer & earn ₹2 per friend\n"
-                f"🎁 Claim a daily bonus!\n\n"
-                f"🔽 Choose an option below 👇",
+
+    await update.message.reply_text(
+        f"👋 Welcome {update.effective_user.first_name}!\n\n"
+        f"💰 Earn ₹2 per referral!\n"
+        f"🔗 Your Referral Link:\n"
+        f"`https://t.me/{BOT_USERNAME}?start={user_id}`\n\n"
+        f"📢 Invite friends & start earning!",
         reply_markup=reply_markup
     )
 
-# Check Balance (Smooth UI)
+# Check Balance
 async def check_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
     balance = users.get(user_id, {}).get("balance", 0)
 
-    await query.answer()
-    await query.message.edit_text(f"💰 **Your Balance:** ₹{balance} 💸\n\n"
-                                  "📋 Keep completing tasks to earn more! 🎯")
-
-# Claim Daily Bonus (With Fun Message)
-async def claim_daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = query.from_user.id
-
-    if user_id in daily_bonus_claimed:
-        await query.answer("❌ You've already claimed today's bonus! 🎁")
-        return
-
-    users[user_id]["balance"] += 1  # ₹1 Daily Bonus
-    daily_bonus_claimed[user_id] = True
+    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.answer()
-    await query.message.reply_animation(
-        animation="https://media.giphy.com/media/d31w24psGYeekCZy/giphy.gif",
-        caption="🎉 **Bonus Claimed!** ₹1 added to your balance!\n"
-                "💰 Keep earning more!"
-    )
+    await query.message.edit_text(f"💰 **Your Balance:** ₹{balance}\n\n"
+                                  "📢 Keep inviting friends to earn more!",
+                                  reply_markup=reply_markup)
 
-# How to Earn? (Interactive UI)
-async def how_to_earn(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.message.edit_text(
-        "💼 **How to Earn Money?** 💸\n\n"
-        "✅ Complete tasks (₹1 per task) 📋\n"
-        "✅ Refer friends (₹2 per referral) 👥\n"
-        "✅ Claim daily bonus (₹1/day) 🎁\n\n"
-        "🚀 **Earn more & withdraw at ₹50!**"
-    )
-
-# Request Withdrawal
-async def request_withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = query.from_user.id
-    balance = users.get(user_id, {}).get("balance", 0)
-
-    if balance < 50:
-        await query.answer("❌ Minimum ₹50 required for withdrawal!")
-        return
-
-    users[user_id]["balance"] = 0  # Reset balance after withdrawal request
-    await query.answer()
-    await query.message.reply_text("✅ **Withdrawal request sent!** 📤\n"
-                                   "👀 Admin will review your request soon!")
-
-# Admin: Add New Task (Now With Confirmation)
-async def add_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Only the admin can add tasks.")
-        return
-
-    try:
-        task_description = " ".join(context.args)
-        if not task_description:
-            await update.message.reply_text("Usage: `/addtask <task description>`")
-            return
-
-        task_id = len(tasks) + 1
-        tasks[task_id] = task_description
-
-        await update.message.reply_text(f"✅ **New Task Added:**\n📋 {task_description}")
-
-    except Exception as e:
-        logger.error(f"Error adding task: {e}")
-        await update.message.reply_text("❌ Failed to add task.")
-
-# View Available Tasks (Updated UI)
+# View Available Tasks
 async def view_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
 
     if not tasks:
         await query.answer()
-        await query.message.edit_text("📋 **No tasks available!**\nCheck back later! ⏳")
+        await query.message.edit_text("📋 **No tasks available right now.**\nCheck back later! ⏳")
         return
 
     message = "📋 **Available Tasks:**\n\n"
@@ -134,13 +74,13 @@ async def view_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message += f"✅ **Task {task_id}:** {task_desc}\n"
             buttons.append([InlineKeyboardButton(f"✔ Complete Task {task_id}", callback_data=f"complete_{task_id}")])
 
-    buttons.append([InlineKeyboardButton("🔙 Back", callback_data="start")])
+    buttons.append([InlineKeyboardButton("🔙 Back", callback_data="back")])
     reply_markup = InlineKeyboardMarkup(buttons)
 
     await query.answer()
     await query.message.edit_text(message, reply_markup=reply_markup)
 
-# Complete Task (Celebratory Message)
+# Complete Task
 async def complete_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
@@ -154,39 +94,105 @@ async def complete_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users[user_id]["balance"] += 1  # ₹1 per completed task
 
     await query.answer()
-    await query.message.reply_animation(
-        animation="https://media.giphy.com/media/111ebonMs90YLu/giphy.gif",
-        caption=f"🎉 **Task {task_id} Completed!** ₹1 added to your balance! 💰"
+    await query.message.edit_text(f"🎉 **Task {task_id} Completed!** ₹1 added to your balance! 💰")
+
+# Referral Info
+async def referral_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+    referral_count = len(users.get(user_id, {}).get("referrals", []))
+
+    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.answer()
+    await query.message.edit_text(f"👥 **Total Referrals:** {referral_count}\n\n"
+                                  f"🔗 Your Referral Link:\n"
+                                  f"`https://t.me/{BOT_USERNAME}?start={user_id}`\n\n"
+                                  f"📢 Invite more & earn ₹2 per referral!",
+                                  reply_markup=reply_markup)
+
+# Withdrawal Request
+async def withdraw(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+    balance = users.get(user_id, {}).get("balance", 0)
+
+    if balance < 50:
+        await query.answer("❌ Minimum ₹50 required for withdrawal!", show_alert=True)
+        return
+
+    users[user_id]["balance"] = 0  # Reset balance after withdrawal request
+
+    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.answer()
+    await query.message.edit_text("📤 **Withdrawal Request Sent!**\n\n"
+                                  "✅ The admin will review your request shortly!",
+                                  reply_markup=reply_markup)
+
+# How to Earn?
+async def earning_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.answer()
+    await query.message.edit_text(
+        "💼 **How to Earn Money?**\n\n"
+        "✅ **Refer Friends:** Earn ₹2 per referral! 👥\n"
+        "✅ **Complete Tasks:** Earn ₹1 per task! 📋\n"
+        "✅ **Withdraw when you reach ₹50** 📤\n\n"
+        "🚀 Start referring & earning now!",
+        reply_markup=reply_markup
+    )
+
+# Back to Main Menu
+async def back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user_id = query.from_user.id
+
+    keyboard = [
+        [InlineKeyboardButton("💰 Check Balance", callback_data="balance"),
+         InlineKeyboardButton("📋 View Tasks", callback_data="view_tasks")],
+        [InlineKeyboardButton("👥 Referral Info", callback_data="referrals"),
+         InlineKeyboardButton("📤 Withdraw", callback_data="withdraw")],
+        [InlineKeyboardButton("💼 How to Earn?", callback_data="earnings")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await query.message.edit_text(
+        f"💰 Earn ₹2 per referral!\n"
+        f"🔗 Your Referral Link:\n"
+        f"`https://t.me/{BOT_USERNAME}?start={user_id}`\n\n"
+        f"📢 Invite friends & start earning!",
+        reply_markup=reply_markup
     )
 
 # Callback Query Handler
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    if query.data == "balance":
-        await check_balance(update, context)
-    elif query.data == "daily_bonus":
-        await claim_daily_bonus(update, context)
-    elif query.data == "how_to_earn":
-        await how_to_earn(update, context)
-    elif query.data == "withdraw":
-        await request_withdraw(update, context)
-    elif query.data == "view_tasks":
-        await view_tasks(update, context)
-    elif query.data.startswith("complete_"):
-        await complete_task(update, context)
-    elif query.data == "start":
-        await start(update, context)
+    actions = {
+        "balance": check_balance,
+        "view_tasks": view_tasks,
+        "referrals": referral_info,
+        "withdraw": withdraw,
+        "earnings": earning_guide,
+        "back": back_to_menu
+    }
+    await actions.get(query.data, back_to_menu)(update, context)
 
 # Main Function
 def main():
-    BOT_TOKEN = "7856544100:AAEQg6esrMF6Z7mefUAtbwzmqgG-TBuKTU0"  # Replace with your Bot Token
+    BOT_TOKEN = "YOUR_BOT_TOKEN"  # Replace with your Bot Token
 
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("addtask", add_task))  # Admin assigns tasks
     app.add_handler(CallbackQueryHandler(button_handler))
-
+    
     print("🤖 Bot is running...")
     app.run_polling()
 
