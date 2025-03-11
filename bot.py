@@ -1,26 +1,38 @@
 import os
-import asyncio
+import json
 from pyrogram import Client, filters
-from pymongo import MongoClient
 
-# Bot Config
-API_ID = "your_api_id"
-API_HASH = "your_api_hash"
-BOT_TOKEN = "your_bot_token"
-MONGO_URL = "your_mongo_db_url"
+# Load Bot Token from Environment Variables
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# Initialize bot and database
-bot = Client("CryptoBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-db = MongoClient(MONGO_URL)["CryptoBot"]
+# Initialize Bot in Bot API Mode
+bot = Client("CryptoBot", bot_token=BOT_TOKEN, api_id=1, api_hash="abc", no_updates=True)
+
+# File to store user balances
+DATA_FILE = "users.json"
+
+# Load user data
+def load_data():
+    try:
+        with open(DATA_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+# Save user data
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
 # Start Command
 @bot.on_message(filters.command("start"))
 async def start(client, message):
-    user_id = message.from_user.id
-    user = db.users.find_one({"user_id": user_id})
+    user_id = str(message.from_user.id)
+    data = load_data()
     
-    if not user:
-        db.users.insert_one({"user_id": user_id, "balance": 0, "referred_by": None})
+    if user_id not in data:
+        data[user_id] = {"balance": 0}
+        save_data(data)
         await message.reply_text("🎉 Welcome! Start earning by completing tasks.")
     else:
         await message.reply_text("🔄 Welcome back!")
@@ -28,25 +40,11 @@ async def start(client, message):
 # Check Balance
 @bot.on_message(filters.command("balance"))
 async def balance(client, message):
-    user = db.users.find_one({"user_id": message.from_user.id})
-    balance = user["balance"] if user else 0
+    user_id = str(message.from_user.id)
+    data = load_data()
+    
+    balance = data.get(user_id, {}).get("balance", 0)
     await message.reply_text(f"💰 Your balance: {balance} Coins")
 
-# Add Task (Admin only)
-@bot.on_message(filters.command("addtask") & filters.user(123456789))  # Replace with your Telegram ID
-async def add_task(client, message):
-    task_desc = message.text.split("/addtask ", 1)[-1]
-    db.tasks.insert_one({"task": task_desc})
-    await message.reply_text("✅ Task added!")
-
-# Request Withdrawal
-@bot.on_message(filters.command("withdraw"))
-async def withdraw(client, message):
-    user = db.users.find_one({"user_id": message.from_user.id})
-    if user["balance"] < 10:  # Minimum withdrawal limit
-        await message.reply_text("⚠️ Minimum withdrawal is 10 Coins!")
-        return
-    await message.reply_text("✅ Withdrawal request sent. Admin will review.")
-
-# Run bot
+# Run the bot
 bot.run()
